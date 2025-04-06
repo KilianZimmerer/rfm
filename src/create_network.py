@@ -45,20 +45,28 @@ def data_from_net_xml(net_xml: str) -> HeteroData:
                     )
     # Give the freedom to gather information of both directions.
     data = T.ToUndirected()(data)
-    return data
+    return data, node_mapping
 
 
-def add_trains(data: HeteroData, output_xml: str) -> HeteroData:
+def add_trains(data: HeteroData, output_xml: str, node_mapping: dict) -> HeteroData:
     """Add train nodes to the HeterData Object.
     
     Args:
         data:
-        output_xml (str): Path to the SUMO simulation output file:
+        output_xml (str): Path to the SUMO simulation fcd-export xml file that contains simulation output.
 
     Returns:
-        HeteroData object containing train nodes
+        HeteroData object containing train nodes from simulation output.
     """
+
+    # read output_xml file and parse 
+    output_data = _parse_fcd_data(output_xml)
+    # TODO 1: split data into chunks of diverse lengths (to allow for different history lengths)
+    # TODO 2: with each chunk create distinct HeteroData files. Each element in the output_data list becomes a node of type "vehicle" (data["vehicle"]). 
+    # These vehicle nodes possess the attributes time, position, speed and next_lane_id, next_lane_type (or maybe as one id?)
+    import pdb;pdb.set_trace()
     return data
+
 
 def _network_from_xml(net_file):
     """Creates a network representation where lanes are nodes and connections are edges.
@@ -103,9 +111,38 @@ def _network_from_xml(net_file):
     return lane_nodes, lane_edges
 
 
+def _parse_fcd_data(xml_file: str):
+    """
+    Parses an fcd-export XML file and returns vehicle data in a list of dictionaries.
+
+    Args:
+        xml_file (str): Path to the fcd-export XML file.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary represents a vehicle's data at a specific timestep.  Returns an empty list if no timesteps are found.  
+              Each dictionary contains 'vehicle_id', 'time', 'pos', 'lane', and 'speed'.
+    """
+
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+    vehicle_data = []
+    for timestep in root.findall('timestep'):
+        time = float(timestep.get('time'))
+        for vehicle in timestep.findall('vehicle'):
+            vehicle_data.append({
+                'vehicle_id': vehicle.get('id'),
+                'time': time,
+                'pos': float(vehicle.get('pos')),
+                'lane': vehicle.get('lane'),
+                'speed': float(vehicle.get('speed'))
+            })
+    return vehicle_data
+
+
 if __name__ == "__main__":
-    net_file = "sumo/sim1/rail.net.xml"
-    data = data_from_net_xml(net_file)
-    data = add_trains(data)
+    net_xml = "sumo/sim1/rail.net.xml"
+    output_xml = "sumo/sim1/output.xml"
+    data, node_mapping = data_from_net_xml(net_xml=net_xml)
+    data = add_trains(data, output_xml=output_xml, node_mapping=node_mapping)
     print(data)
     import pdb;pdb.set_trace()
