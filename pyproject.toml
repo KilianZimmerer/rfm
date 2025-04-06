@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "rfm"
+version = "0.1.0"
+description = ""
+authors = ["KilianZimmerer"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.6.0"
+torch-geometric = "^2.6.1"
+numpy = "^2.2.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

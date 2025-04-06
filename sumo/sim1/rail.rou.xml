@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<routes>
+	<vType id="rail" vClass="rail" length="1" maxSpeed="1" accel="2.6" decel="4.5" sigma="0.5"/>
+	<route id="0" edges="e1 e2 e3 e4" repeat="10000"/>
+	<vehicle id="0" type="rail" route="0" depart="0" />
+</routes>
