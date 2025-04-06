@@ -1,11 +1,67 @@
 import xml.etree.ElementTree as ET
 import torch
 from torch_geometric.data import HeteroData
-import numpy as np
+import torch_geometric.transforms as T
 
-def network_from_xml(net_file):
+
+def data_from_net_xml(net_xml: str) -> HeteroData:
+    """Creates a HeteroData object from nodes and edges
+    
+    Args:
+        net_xml (str): Path to the SUMO network XML file.
+        
+
+    Returns:
+        HeteroData obejct
     """
-    Creates a network representation where lanes are nodes and connections are edges.
+
+    nodes, edges = _network_from_xml(net_xml)
+
+    data = HeteroData()
+
+    node_mapping = {}
+    for type in nodes:
+        for id, lane_id in enumerate(nodes[type].keys()):
+            value = nodes[type][lane_id]
+            if not data[type]:
+                data[type].x = torch.tensor([[value["length"]]], dtype=torch.float32)            
+            else:
+                data[type].x = torch.cat((data[type].x, torch.tensor([[value["length"]]], dtype=torch.float32)), dim=0)
+            node_mapping[lane_id] = {"id": id, "type": type}
+
+    for start_node, end_nodes in edges.items():
+        start_type = node_mapping[start_node]["type"]
+        for end_node in end_nodes:
+            end_type = node_mapping[end_node]["type"]
+            if not data[start_type, "connects", end_type]:
+                data[start_type, "connects", end_type].edge_index = torch.tensor(
+                    [[node_mapping[start_node]["id"]], [node_mapping[end_node]["id"]]], dtype=torch.long
+                )
+            else:
+                data[start_type, "connects", end_type].edge_index = torch.cat(
+                    (
+                        data[start_type, "connects", end_type].edge_index,
+                        torch.tensor([[node_mapping[start_node]["id"]], [node_mapping[end_node]["id"]]], dtype=torch.long)), dim=1
+                    )
+    # Give the freedom to gather information of both directions.
+    data = T.ToUndirected()(data)
+    return data
+
+
+def add_trains(data: HeteroData, output_xml: str) -> HeteroData:
+    """Add train nodes to the HeterData Object.
+    
+    Args:
+        data:
+        output_xml (str): Path to the SUMO simulation output file:
+
+    Returns:
+        HeteroData object containing train nodes
+    """
+    return data
+
+def _network_from_xml(net_file):
+    """Creates a network representation where lanes are nodes and connections are edges.
 
     Args:
         net_file (str): Path to the SUMO network XML file.
@@ -47,47 +103,9 @@ def network_from_xml(net_file):
     return lane_nodes, lane_edges
 
 
-def to_hetero_data(nodes: dict, edges: list):
-    """Creates a HeteroData object from nodes and edges
-    
-    Args:
-        nodes:
-        edges:
-
-    Returns:
-        HeteroData obejct
-    """
-
-    data = HeteroData()
-
-    node_mapping = {}
-    for type in nodes:
-        for id, lane_id in enumerate(nodes[type].keys()):
-            value = nodes[type][lane_id]
-            if not data[type]:
-                data[type].x = torch.tensor([[value["length"]]], dtype=torch.float32)            
-            else:
-                data[type].x = torch.cat((data[type].x, torch.tensor([[value["length"]]], dtype=torch.float32)), dim=0)
-            node_mapping[lane_id] = {"id": id, "type": type}
-
-    for start_node, end_nodes in edges.items():
-        start_type = node_mapping[start_node]["type"]
-        for end_node in end_nodes:
-            end_type = node_mapping[end_node]["type"]
-            if not data[start_type, "connects", end_type]:
-                data[start_type, "connects", end_type].edge_index = torch.tensor(
-                    [[node_mapping[start_node]["id"]], [node_mapping[end_node]["id"]]], dtype=torch.long
-                )
-            else:
-                data[start_type, "connects", end_type].edge_index = torch.cat(
-                    (
-                        data[start_type, "connects", end_type].edge_index,
-                        torch.tensor([[node_mapping[start_node]["id"]], [node_mapping[end_node]["id"]]], dtype=torch.long)), dim=1
-                    )
-    return data
-
 if __name__ == "__main__":
     net_file = "sumo/sim1/rail.net.xml"
-    lane_nodes, lane_edges = network_from_xml(net_file)
-    data = to_hetero_data(lane_nodes, lane_edges)
+    data = data_from_net_xml(net_file)
+    data = add_trains(data)
+    print(data)
     import pdb;pdb.set_trace()
