@@ -159,12 +159,6 @@ def add_trains(data: HeteroData, output_xml: str, node_mapping: dict, batching: 
                     dim=1
                 )
         data_list.append(clone)
-    
-    # TODO: create connections: 
-    # 1. train on track
-    # 2. track rev_on train
-    # 3. (train, precedes, train)
-    import pdb;pdb.set_trace()
     return data_list
 
 
@@ -243,6 +237,5 @@ if __name__ == "__main__":
     net_xml = "sumo/sim1/rail.net.xml"
     output_xml = "sumo/sim1/output.xml"
     data, node_mapping = data_from_net_xml(net_xml=net_xml)
-    data = add_trains(data, output_xml=output_xml, node_mapping=node_mapping)
-    print(data)
-    import pdb;pdb.set_trace()
+    data_list = add_trains(data, output_xml=output_xml, node_mapping=node_mapping)
+    print(data_list[0])
