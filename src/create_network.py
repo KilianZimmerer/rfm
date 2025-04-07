@@ -1,3 +1,4 @@
+import random
 import xml.etree.ElementTree as ET
 import torch
 from torch_geometric.data import HeteroData
@@ -35,20 +36,29 @@ def data_from_net_xml(net_xml: str) -> HeteroData:
             end_type = node_mapping[end_node]["type"]
             if not data[start_type, "connects", end_type]:
                 data[start_type, "connects", end_type].edge_index = torch.tensor(
-                    [[node_mapping[start_node]["id"]], [node_mapping[end_node]["id"]]], dtype=torch.long
+                    [
+                        [node_mapping[start_node]["id"], node_mapping[end_node]["id"]], 
+                        [node_mapping[end_node]["id"], node_mapping[start_node]["id"]],
+                    ],
+                    dtype=torch.long
                 )
             else:
                 data[start_type, "connects", end_type].edge_index = torch.cat(
                     (
                         data[start_type, "connects", end_type].edge_index,
-                        torch.tensor([[node_mapping[start_node]["id"]], [node_mapping[end_node]["id"]]], dtype=torch.long)), dim=1
+                        torch.tensor(
+                            [
+                                [node_mapping[start_node]["id"], node_mapping[end_node]["id"]],
+                                [node_mapping[end_node]["id"], node_mapping[start_node]["id"]]
+                            ],
+                            dtype=torch.long)
+                        ),
+                        dim=1
                     )
-    # Give the freedom to gather information of both directions.
-    data = T.ToUndirected()(data)
     return data, node_mapping
 
 
-def add_trains(data: HeteroData, output_xml: str, node_mapping: dict) -> HeteroData:
+def add_trains(data: HeteroData, output_xml: str, node_mapping: dict, batching: dict = {"low": 5, "high": 20}) -> list[HeteroData]:
     """Add train nodes to the HeterData Object.
     
     Args:
@@ -60,12 +70,102 @@ def add_trains(data: HeteroData, output_xml: str, node_mapping: dict) -> HeteroD
     """
 
     # read output_xml file and parse 
-    output_data = _parse_fcd_data(output_xml)
-    # TODO 1: split data into chunks of diverse lengths (to allow for different history lengths)
-    # TODO 2: with each chunk create distinct HeteroData files. Each element in the output_data list becomes a node of type "vehicle" (data["vehicle"]). 
-    # These vehicle nodes possess the attributes time, position, speed and next_lane_id, next_lane_type (or maybe as one id?)
+    output = _parse_fcd_data(output_xml)
+    batches = []
+    while True:
+        size = random.randint(batching["low"], batching["high"])
+        batches.append(output[:size])
+        output = output[size:]
+        if not output:
+            break
+    
+    data_list = []
+    for batch in batches:
+        clone = data.clone()
+        for i, timestep in enumerate(batch):
+            type = node_mapping[timestep["lane"]]["type"]
+            node_id = node_mapping[timestep["lane"]]["id"]
+            if not clone["vehicle"]:
+                clone["vehicle"].x = torch.tensor([[timestep["pos"]]], dtype=torch.float32)            
+                clone["vehicle"].time = torch.tensor([[timestep["time"]]], dtype=torch.float32)
+            else:
+                clone["vehicle"].x = torch.cat((clone["vehicle"].x, torch.tensor([[timestep["pos"]]], dtype=torch.float32)), dim=0)
+                clone["vehicle"].time = torch.cat((clone["vehicle"].time, torch.tensor([[timestep["time"]]], dtype=torch.float32)), dim=0)
+            
+            if not clone["vehicle", "on", type]:
+                clone["vehicle", "on", type].edge_index = torch.tensor(
+                    [
+                        [i],
+                        [node_id],
+                    ],
+                   dtype=torch.long,
+                )
+            else:    
+                clone["vehicle", "on", type].edge_index = torch.cat(
+                    (
+                        clone["vehicle", "on", type].edge_index,
+                        torch.tensor(
+                            [
+                                [i],
+                                [node_id],
+                            ],
+                            dtype=torch.long
+                        )
+                    ),
+                    dim=1
+                )
+            if not clone[type, "hosts", "vehicle"]:
+                clone[type, "hosts", "vehicle"].edge_index = torch.tensor(
+                    [
+                        [node_id],
+                        [i],
+                    ],
+                   dtype=torch.long,
+                )
+            else:    
+                clone[type, "hosts", "vehicle"].edge_index = torch.cat(
+                    (
+                        clone[type, "hosts", "vehicle"].edge_index,
+                        torch.tensor(
+                            [
+                                [node_id],
+                                [i],
+                            ],
+                            dtype=torch.long
+                        )
+                    ),
+                    dim=1
+                )
+            if not clone["vehicle", "precedes", "vehicle"]:
+                clone["vehicle", "precedes", "vehicle"].edge_index = torch.tensor(
+                    [
+                        [i],
+                        [len(batch) - 1],
+                    ],
+                   dtype=torch.long,
+                )
+            elif i != len(batch) - 1:    
+                clone["vehicle", "precedes", "vehicle"].edge_index = torch.cat(
+                    (
+                        clone["vehicle", "precedes", "vehicle"].edge_index,
+                        torch.tensor(
+                            [
+                                [i],
+                                [len(batch) - 1],
+                            ],
+                            dtype=torch.long
+                        )
+                    ),
+                    dim=1
+                )
+        data_list.append(clone)
+    
+    # TODO: create connections: 
+    # 1. train on track
+    # 2. track rev_on train
+    # 3. (train, precedes, train)
     import pdb;pdb.set_trace()
-    return data
+    return data_list
 
 
 def _network_from_xml(net_file):
