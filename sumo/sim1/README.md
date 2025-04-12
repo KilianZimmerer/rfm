@@ -10,6 +10,10 @@
 - **Output**: Vehicle position over time.
 - **Configuration**: `sumo/sim1/rail.sumocfg`.
 
+## Visualization
+
+![Simulation Visualization](./viz.png)
+
 ## Results
 
 TODO
