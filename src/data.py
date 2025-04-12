@@ -3,9 +3,10 @@ import xml.etree.ElementTree as ET
 import torch
 from torch_geometric.data import HeteroData
 import torch_geometric.transforms as T
+from utils import BiMap
 
 
-def get_data(net_xml: str, output_xml: str, batching: dict = {"min": 5, "max": 20}) -> list[HeteroData]:
+def get_data(simulation_id: str, batching: dict = {"min": 5, "max": 20}) -> list[HeteroData]:
     """Creates a list of HeteroData objects from net_xml and output_xml.
     
     Args:
@@ -17,6 +18,8 @@ def get_data(net_xml: str, output_xml: str, batching: dict = {"min": 5, "max": 2
         List of HeteroData obejcts
     """
 
+    net_xml = f"sumo/{simulation_id}/rail.net.xml"
+    output_xml = f"sumo/{simulation_id}/output.xml"
     data, node_mapping = _data_from_net_xml(net_xml=net_xml)
     data_list = _add_trains(data, output_xml=output_xml, node_mapping=node_mapping, batching=batching)
     return data_list, node_mapping
@@ -36,16 +39,16 @@ def _data_from_net_xml(net_xml: str) -> HeteroData:
 
     data = HeteroData()
 
-    node_mapping = {}
-    for node_type in nodes:
-        for i, lane_id in enumerate(nodes[node_type].keys()):
+    node_mapping = BiMap()
+    for i, node_type in enumerate(nodes):
+        for j, lane_id in enumerate(nodes[node_type].keys()):
             value = nodes[node_type][lane_id]
             track_type = "track"
             if not data[track_type]:
                 data[track_type].x = torch.tensor([[value["length"]]], dtype=torch.float32)            
             else:
                 data[track_type].x = torch.cat((data[track_type].x, torch.tensor([[value["length"]]], dtype=torch.float32)), dim=0)
-            node_mapping[lane_id] = {"id": i}
+            node_mapping.add(lane_id=lane_id, id_=int(i * len(nodes[node_type]) + j))
 
     for start_node, end_nodes in edges.items():
         track_type = "track"
@@ -53,8 +56,8 @@ def _data_from_net_xml(net_xml: str) -> HeteroData:
             if not data[track_type, "connects", track_type]:
                 data[track_type, "connects", track_type].edge_index = torch.tensor(
                     [
-                        [node_mapping[start_node]["id"], node_mapping[end_node]["id"]], 
-                        [node_mapping[end_node]["id"], node_mapping[start_node]["id"]],
+                        [node_mapping.get_id(start_node), node_mapping.get_id(end_node)],
+                        [node_mapping.get_id(end_node), node_mapping.get_id(start_node)],
                     ],
                     dtype=torch.long
                 )
@@ -64,8 +67,8 @@ def _data_from_net_xml(net_xml: str) -> HeteroData:
                         data[track_type, "connects", track_type].edge_index,
                         torch.tensor(
                             [
-                                [node_mapping[start_node]["id"], node_mapping[end_node]["id"]],
-                                [node_mapping[end_node]["id"], node_mapping[start_node]["id"]]
+                                [node_mapping.get_id(start_node), node_mapping.get_id(end_node)],
+                                [node_mapping.get_id(end_node), node_mapping.get_id(start_node)],
                             ],
                             dtype=torch.long)
                         ),
@@ -102,18 +105,22 @@ def _add_trains(data: HeteroData, output_xml: str, node_mapping: dict, batching:
         clone = data.clone()
         for i, timestep in enumerate(batch):
             track_type = "track"
-            node_id = node_mapping[timestep["lane"]]["id"]
+            node_id = node_mapping.get_id(timestep["lane"])
             rel_pos = timestep["pos"] / clone[track_type].x[node_id].item()
             if not clone["vehicle"]:
                 clone["vehicle"].x = torch.tensor([[rel_pos]], dtype=torch.float32)            
                 clone["vehicle"].time = torch.tensor([[timestep["time"]]], dtype=torch.float32)
                 clone["vehicle"].y_track = torch.tensor([[-1]], dtype=torch.long)
                 clone["vehicle"].y_pos = torch.tensor([[-1]], dtype=torch.float32)
+                clone["vehicle"].id = torch.tensor([[int(timestep["vehicle_id"])]], dtype=torch.long)
+                clone["vehicle"].current = torch.tensor([[False]], dtype=torch.bool)
             else:
                 clone["vehicle"].x = torch.cat((clone["vehicle"].x, torch.tensor([[rel_pos]], dtype=torch.float32)), dim=0)
                 clone["vehicle"].time = torch.cat((clone["vehicle"].time, torch.tensor([[timestep["time"]]], dtype=torch.float32)), dim=0)
                 clone["vehicle"].y_track = torch.cat((clone["vehicle"].y_track, torch.tensor([[-1]], dtype=torch.long)), dim=0)
                 clone["vehicle"].y_pos = torch.cat((clone["vehicle"].y_pos, torch.tensor([[-1]], dtype=torch.float32)), dim=0)
+                clone["vehicle"].id = torch.cat((clone["vehicle"].id, torch.tensor([[int(timestep["vehicle_id"])]], dtype=torch.float32)), dim=0)
+                clone["vehicle"].current = torch.cat((clone["vehicle"].current, torch.tensor([[False]], dtype=torch.bool)), dim=0)
 
             if not clone["vehicle", "on", track_type]:
                 clone["vehicle", "on", track_type].edge_index = torch.tensor(
@@ -181,10 +188,18 @@ def _add_trains(data: HeteroData, output_xml: str, node_mapping: dict, batching:
                     ),
                     dim=1
                 )
-        # correct previous prediction value to the current track segment
-        clone["vehicle"].y_track[-2] = torch.tensor([[node_id]], dtype=torch.long)
-        clone["vehicle"].y_pos[-2] = torch.tensor([[rel_pos]], dtype=torch.float32)
-        # remove the last timestep
+        # fill previous prediction value to the last node as true value
+        for id in clone["vehicle"].id.unique():
+            mask = clone["vehicle"].id == id
+            indices = torch.where(mask)[0]
+            if len(indices) > 1:
+                source_index = indices[-1]
+                node_id = node_mapping.get_id(batch[source_index]["lane"])
+                rel_pos = batch[source_index]["pos"] / clone["track"].x[node_id].item()
+                target_index = indices[-2]
+                clone["vehicle"].current[target_index] = torch.tensor([[True]], dtype=torch.bool)
+                clone["vehicle"].y_track[target_index] = torch.tensor([[node_id]], dtype=torch.long)
+                clone["vehicle"].y_pos[target_index] = torch.tensor([[rel_pos]], dtype=torch.float32)
         data_list.append(clone)
     return data_list
 
@@ -261,9 +276,7 @@ def _parse_fcd_data(xml_file: str):
 
 
 if __name__ == "__main__":
-    net_xml = "sumo/sim1/rail.net.xml"
-    output_xml = "sumo/sim1/output.xml"
-    data_list = get_data(net_xml, output_xml)
+    simulation_id = "sim1"
+    data_list = get_data(simulation_id)
     print(len(data_list))
     print(data_list[0])
-    import pdb;pdb.set_trace()

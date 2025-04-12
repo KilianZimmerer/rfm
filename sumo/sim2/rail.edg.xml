@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<edges>
+	<edge id="e1" from="n1" to="n2" priority="1">
+		<lane index="0" speed="1.0" allow="rail" />
+	</edge>
+	<edge id="e2" from="n2" to="n3" priority="1">
+		<lane index="0" speed="1.0" allow="rail" />
+	</edge>
+	<edge id="e3" from="n3" to="n4" priority="1">
+		<lane index="0" speed="1.0" allow="rail" />
+	</edge>
+	<edge id="e4" from="n4" to="n1" priority="1">
+		<lane index="0" speed="1.0" allow="rail" />
+	</edge>
+</edges>

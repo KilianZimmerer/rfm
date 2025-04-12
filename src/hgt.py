@@ -1,5 +1,3 @@
-import os.path as osp
-
 import torch
 import torch.nn.functional as F
 
@@ -10,7 +8,7 @@ from torch_geometric.data import HeteroData
 
 from data import get_data
 
-DATA_LIST, NODE_MAPPING = get_data(net_xml="sumo/sim1/rail.net.xml", output_xml="sumo/sim1/output.xml")
+DATA_LIST, NODE_MAPPING = get_data(simulation_id="sim2")
 
 
 class HGT(torch.nn.Module):
@@ -29,7 +27,7 @@ class HGT(torch.nn.Module):
         
         self.scorer = Scorer(int(2 * hidden_channels), hidden_channels)
 
-    def forward(self, x_dict, edge_index_dict):
+    def forward(self, x_dict, edge_index_dict, current):
         x_dict = {
             node_type: self.lin_dict[node_type](x).relu_()
             for node_type, x in x_dict.items()
@@ -38,22 +36,24 @@ class HGT(torch.nn.Module):
         for conv in self.convs:
             x_dict = conv(x_dict, edge_index_dict)
 
-        # iterate through all ":" and "e" nodes for now
-        # TODO: We only need to iterate through candidate nodes
-        out_dict = {"id": [], "pos": [], "scores": []}
-        for node_type, nodes in x_dict.items():
-            if node_type == "vehicle":
-                continue
-            for i in range(len(nodes)):
-                # TODO: this does only work if there is one vechile node
-                score, pos = self.scorer(nodes[i], x_dict["vehicle"][-1])
-                out_dict["scores"].append(score)
-                out_dict["pos"].append(pos)
-                # TODO: i is only the original track id if we iterate through all nodes
-                out_dict["id"].append(i)
+        # TODO: make this as a tensor instead of a list
+        vehicles_out = []
+        for vehicle in x_dict["vehicle"][current[:,0]]:
+            # TODO: We only need to iterate through candidate nodes
+            out_dict = {"track_ids": [], "pos": [], "scores": []}
+            for node_type, nodes in x_dict.items():
+                if node_type == "track":
+                    for i in range(len(nodes)):
+                        # TODO: this does only work if there is one vechile node
+                        score, pos = self.scorer(nodes[i], vehicle)
+                        out_dict["scores"].append(score)
+                        out_dict["pos"].append(pos)
+                        # TODO: i is only the original track id if we iterate through all nodes
+                        out_dict["track_ids"].append(i)
+            out_dict["scores"] = torch.stack(out_dict["scores"]).squeeze()
+            vehicles_out.append(out_dict)
 
-        out_dict["scores"] = torch.stack(out_dict["scores"]).squeeze()
-        return out_dict
+        return vehicles_out
 
 
 class Scorer(torch.nn.Module):
@@ -79,15 +79,15 @@ else:
     device = torch.device('cpu')
 
 
-DATA = DATA_LIST[0]
-model = HGT(hidden_channels=20, num_heads=2, num_layers=2, 
+DATA = DATA_LIST[2]
+model = HGT(hidden_channels=60, num_heads=3, num_layers=2, 
             node_types=DATA.node_types, metadata=DATA.metadata())
 
 data, model = DATA.to(device), model.to(device)
 
 
 with torch.no_grad():  # Initialize lazy modules.
-    out = model(data.x_dict, data.edge_index_dict)
+    out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=0.001)
 
@@ -95,13 +95,18 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=0.001)
 def train(data: HeteroData):
     model.train()
     optimizer.zero_grad()
-    out_dict = model(data.x_dict, data.edge_index_dict)
+    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
     # get max value and id of out["scores"]
-    _, max_index = out_dict["scores"].max(dim=0)
-    # TODO: enable several vehicles so max_index becomes a 1-D tensor
-    loss_scores = F.cross_entropy(out_dict["scores"], data['vehicle'].y_track[-2][0])
-    loss_pos = F.mse_loss(out_dict["pos"][max_index], data['vehicle'].y_pos[-2][0])
-    loss = loss_scores + loss_pos
+    loss = 0
+    for i, out_dict in enumerate(vehicles_out):
+        _, max_index = out_dict["scores"].max(dim=0)
+        # TODO: enable several vehicles so max_index becomes a 1-D tensor
+        # TODO: weight the loss by the number of track nodes
+        y_pos_true = data["vehicle"].y_pos[data["vehicle"].current[:,0]][i]
+        y_track_true = data["vehicle"].y_track[data["vehicle"].current[:,0]][i]
+        loss += F.cross_entropy(out_dict["scores"], y_track_true[0])
+        loss += F.mse_loss(out_dict["pos"][max_index], y_pos_true[0])
+    
     loss.backward()
     optimizer.step()
     return float(loss)
@@ -110,11 +115,17 @@ def train(data: HeteroData):
 @torch.no_grad()
 def test(data: HeteroData):
     model.eval()
-    out_dict = model(data.x_dict, data.edge_index_dict)
-    _, max_index = out_dict["scores"].max(dim=0)
+    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
     
-    correct_track_prediction = (max_index == data['vehicle'].y_track[-2][0])
-    pos_error = torch.abs(out_dict["pos"][max_index] - data['vehicle'].y_pos[-2][0])
+    correct_track_prediction = []
+    pos_error = []
+    for i, out_dict in enumerate(vehicles_out):
+        _, max_index = out_dict["scores"].max(dim=0)
+    
+        y_pos_true = data["vehicle"].y_pos[data["vehicle"].current[:,0]][i]
+        y_track_true = data["vehicle"].y_track[data["vehicle"].current[:,0]][i]
+        correct_track_prediction.append((max_index == y_track_true))
+        pos_error.append(torch.abs(out_dict["pos"][max_index] - y_pos_true))
     return correct_track_prediction, pos_error
 
 
@@ -122,19 +133,29 @@ def test(data: HeteroData):
 train_set = DATA_LIST[:int(len(DATA_LIST) * 0.8)]
 val_set = DATA_LIST[int(len(DATA_LIST) * 0.8):]
 
-for epoch in range(1, 20):
+for epoch in range(1, 50):
     train_errors = {"track": [], "pos": []}
+    epoch_loss = 0
     for batch in train_set:
         data = batch.to(device)
-        loss = train(data)
-
+        epoch_loss += train(data)
         correct_track_prediction, pos_error = test(data)
-        train_errors["track"].append(correct_track_prediction)
-        train_errors["pos"].append(pos_error)
-    train_track_acc = sum(train_errors["track"]) / len(train_set)
-    train_pos_mae = sum(train_errors["pos"]) / len(train_set)
+        train_errors["track"] += correct_track_prediction
+        train_errors["pos"] += pos_error
+    
+    val_errors = {"track": [], "pos": []}
+    for batch in val_set:
+        data = batch.to(device)
+        correct_track_prediction, pos_error = test(data)
+        val_errors["track"] += correct_track_prediction
+        val_errors["pos"] += pos_error
+    
+    train_track_acc = sum(train_errors["track"]) / len(train_errors["track"])
+    train_pos_mae = sum(train_errors["pos"]) / len(train_errors["pos"])
+    val_track_acc = sum(val_errors["track"]) / len(val_errors["track"])
+    val_pos_mae = sum(val_errors["pos"]) / len(val_errors["pos"])
     
     print(f'Epoch: {epoch:03d}')
-    print(f'Loss: {loss:.4f}')
-    print(f'Train_track: {train_track_acc:.4f}')
-    print(f'Train_pos: {train_pos_mae:.4f}')
+    print(f'Loss: {epoch_loss:.4f}')
+    print(f'Train track: {train_track_acc[0]:.4f}', f'Val track: {val_track_acc[0]:.4f}')
+    print(f'Train pos: {train_pos_mae[0]:.4f}', f'Val pos: {val_pos_mae[0]:.4f}')
