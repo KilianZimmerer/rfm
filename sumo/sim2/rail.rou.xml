@@ -4,4 +4,5 @@
 	<route id="0" edges="e1 e2 e3 e4" repeat="10000"/>
 	<vehicle id="0" type="rail" route="0" depart="0" />
 	<vehicle id="1" type="rail" route="0" depart="5" />
+	<vehicle id="2" type="rail" route="0" depart="10" />
 </routes>
