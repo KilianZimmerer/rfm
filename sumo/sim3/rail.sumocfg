@@ -1,0 +1,19 @@
+<configuration>
+    <input>
+        <net-file value="rail.net.xml"/>
+        <route-files value="rail.rou.xml"/>
+
+    </input>
+
+    <output>
+        <fcd-output value="output.xml"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="10000"/>
+    </time>
+    <gui_only>
+        <start value="true"/>
+        <delay value="100"/> </gui_only>
+</configuration>

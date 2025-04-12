@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<connections>
+	<!-- Simple rectangular -->
+	<connection from="e1" to="e2" fromLane="0" toLane="0" />
+	<connection from="e2" to="e3" fromLane="0" toLane="0" />
+	<connection from="e3" to="e4" fromLane="0" toLane="0" />
+	<connection from="e4" to="e1" fromLane="0" toLane="0" />
+	
+	<!-- Diagonals -->
+	<connection from="e4" to="e5" fromLane="0" toLane="0" />
+	<connection from="e5" to="e6" fromLane="0" toLane="0" />
+	<connection from="e6" to="e3" fromLane="0" toLane="0" />
+	<connection from="e5" to="e8" fromLane="0" toLane="0" />
+
+	<connection from="e1" to="e7" fromLane="0" toLane="0" />
+	<connection from="e7" to="e8" fromLane="0" toLane="0" />
+	<connection from="e8" to="e4" fromLane="0" toLane="0" />
+	<connection from="e7" to="e6" fromLane="0" toLane="0" />
+
+</connections>

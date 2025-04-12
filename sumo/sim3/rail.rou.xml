@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<routes>
+	<vType id="rail" vClass="rail" length="1" maxSpeed="1" accel="2.6" decel="4.5" sigma="0.1"/>
+	<!-- Rectangular route -->
+	<route id="0" edges="e1 e2 e3 e4" repeat="10000"/>
+	<vehicle id="0" type="rail" route="0" depart="0" />
+	<vehicle id="1" type="rail" route="0" depart="5" />
+	<vehicle id="2" type="rail" route="0" depart="10" />
+	
+	<route id="1" edges="e1 e7 e8 e4" repeat="10000"/>
+	<vehicle id="3" type="rail" route="1" depart="11" />
+	
+	<route id="2" edges="e5 e6 e3 e4" repeat="10000"/>
+	<vehicle id="4" type="rail" route="2" depart="15" />
+</routes>

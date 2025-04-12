@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<nodes>
+	<node id="n1" x="0" y="0" type="rail_crossing" />
+	<node id="n2" x="50" y="0" type="rail_crossing" />
+	<node id="n3" x="50" y="20" type="rail_crossing" />
+	<node id="n4" x="0" y="20" type="rail_crossing" />
+	<node id="n5" x="25" y="10" type="rail_crossing" />
+</nodes>
