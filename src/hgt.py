@@ -4,8 +4,7 @@ from torch_geometric.nn import HGTConv, Linear
 import torch_geometric
 from data import get_data
 
-DATA_LIST, NODE_MAPPING = get_data(simulation_id="sim2")
-
+DATA_LIST, NODE_MAPPING = get_data(simulation_id="sim3")
 
 class HGT(torch.nn.Module):
     def __init__(self, hidden_channels, num_heads, num_layers, node_types, metadata):
