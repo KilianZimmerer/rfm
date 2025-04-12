@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 import torch
 from torch_geometric.data import HeteroData
 from utils import BiMap
+from collections import defaultdict
 
 
 def get_data(simulation_id: str, batching: dict = {"min": 5, "max": 20}) -> tuple[list[HeteroData], BiMap]:
@@ -63,14 +64,24 @@ def _add_trains(data: HeteroData, output_xml: str, node_mapping: BiMap, batching
 
 
 def _create_batches(output: list, batching: dict) -> list[list]:
-    """Creates batches of data based on the batching configuration."""
+    """Creates batches of data based on the batching configuration, ensuring minimum values per vehicle."""
+
+    # Group output by vehicle_id
+    vehicle_data = defaultdict(list)
+    for entry in output:
+        vehicle_data[entry["vehicle_id"]].append(entry)
+
+    # Create batches ensuring minimum values per vehicle
     batches = []
-    while output:
-        size = random.randint(batching["min"], batching["max"])
-        batches.append(output[:size])
-        output = output[size:]
-        if len(output) < batching["min"]:
-            break
+    while any(vehicle_data.values()):
+        batch = []
+        for vehicle_id, entries in list(vehicle_data.items()):
+            size = random.randint(batching["min"], batching["max"])
+            batch.extend(entries[:size])
+            vehicle_data[vehicle_id] = entries[size:]
+            if not vehicle_data[vehicle_id]:
+                del vehicle_data[vehicle_id]
+        batches.append(batch)
     return batches
 
 
@@ -135,7 +146,6 @@ def _update_previous_predictions(data: HeteroData, batch: list, node_mapping: Bi
             data["vehicle"].current[target_index] = torch.tensor([[True]], dtype=torch.bool)
             data["vehicle"].y_track[target_index] = torch.tensor([[node_id]], dtype=torch.long)
             data["vehicle"].y_pos[target_index] = torch.tensor([[rel_pos]], dtype=torch.float32)
-
 
 def _network_from_xml(net_file: str) -> tuple[dict, dict]:
     """Creates a network representation where lanes are nodes and connections are edges."""
