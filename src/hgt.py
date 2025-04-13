@@ -121,7 +121,7 @@ def main():
     train_set = DATA_LIST[:int(len(DATA_LIST) * 0.8)]
     val_set = DATA_LIST[int(len(DATA_LIST) * 0.8):]
 
-    for epoch in range(1, 50):
+    for epoch in range(1, 100):
         epoch_loss = 0
         for batch in train_set:
             data = batch.to(device)

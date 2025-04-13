@@ -33,7 +33,7 @@ def _add_nodes_to_data(data: HeteroData, nodes: dict) -> BiMap:
             track_type = "track"
             length_tensor = torch.tensor([[value["length"]]], dtype=torch.float32)
             data[track_type].x = torch.cat((data[track_type].x, length_tensor), dim=0) if data[track_type] else length_tensor
-            node_mapping.add(lane_id=lane_id, id_=int(i * len(nodes[node_type]) + j))
+            node_mapping.add(lane_id=lane_id, id_=int(len(data[track_type].x) - 1))
     return node_mapping
 
 
