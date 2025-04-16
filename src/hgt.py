@@ -2,9 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import HGTConv, Linear
 import torch_geometric
-from data import get_data
-
-DATA_LIST, NODE_MAPPING = get_data(simulation_id="sim3")
+from src.data import get_data
 
 class HGT(torch.nn.Module):
     def __init__(self, hidden_channels, num_heads, num_layers, node_types, metadata):
@@ -111,15 +109,15 @@ def evaluate_model(data_list, model, device):
     return track_acc, pos_mae
 
 
-def main():
+def main(data_list: list):
     device = get_device()
-    DATA = DATA_LIST[2]
+    data = data_list[2]
     model = HGT(hidden_channels=60, num_heads=3, num_layers=2,
-                node_types=DATA.node_types, metadata=DATA.metadata()).to(device)
+                node_types=data.node_types, metadata=data.metadata()).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=0.001)
 
-    train_set = DATA_LIST[:int(len(DATA_LIST) * 0.8)]
-    val_set = DATA_LIST[int(len(DATA_LIST) * 0.8):]
+    train_set = data_list[:int(len(data_list) * 0.8)]
+    val_set = data_list[int(len(data_list) * 0.8):]
 
     for epoch in range(1, 100):
         epoch_loss = 0
@@ -134,7 +132,23 @@ def main():
         print(f'Loss: {epoch_loss:.4f}')
         print(f'Train track: {train_track_acc[0]:.4f}', f'Val track: {val_track_acc[0]:.4f}')
         print(f'Train pos: {train_pos_mae[0]:.4f}', f'Val pos: {val_pos_mae[0]:.4f}')
-
+    return model
+    
 
 if __name__ == "__main__":
-    main()
+    from safetensors.torch import save_model, load_model
+    simulation_id = "sim3"
+    data_list, _ = get_data(simulation_id=simulation_id)
+    model = main(data_list=data_list)
+
+    save_model(model, f"sumo/{simulation_id}/model.safetensors")
+    
+    # Load the model
+    device = get_device()
+    model_test = HGT(
+        hidden_channels=60, num_heads=3, num_layers=2,
+        node_types=data_list[0].node_types, metadata=data_list[0].metadata()).to(device)
+    # Perform a dummy forward pass to initialize lazy modules
+    model_test(data_list[0].x_dict, data_list[0].edge_index_dict, current=data_list[0]['vehicle'].current)
+    load_model(model_test, f"sumo/{simulation_id}/model.safetensors")
+    

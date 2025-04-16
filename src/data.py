@@ -2,7 +2,7 @@ import random
 import xml.etree.ElementTree as ET
 import torch
 from torch_geometric.data import HeteroData
-from utils import BiMap
+from src.utils import BiMap
 from collections import defaultdict
 
 
