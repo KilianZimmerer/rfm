@@ -20,7 +20,7 @@ class HGT(torch.nn.Module):
         self.scorer = Scorer(2 * hidden_channels, hidden_channels)
 
 
-    def forward(self, x_dict, edge_index_dict, current, time_dict=None):
+    def forward(self, x_dict, edge_index_dict, current):
         """
         
         Args:
@@ -78,8 +78,7 @@ def get_device():
 def train(data, model, optimizer):
     model.train()
     optimizer.zero_grad()
-    time_dict = {"vehicle": data["vehicle"].time}
-    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current, time_dict=time_dict)
+    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
     loss = compute_loss(data, vehicles_out)
     loss.backward()
     optimizer.step()
