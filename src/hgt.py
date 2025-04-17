@@ -3,6 +3,9 @@ import torch.nn.functional as F
 from torch_geometric.nn import HGTConv, Linear
 import torch_geometric
 from src.data import get_data
+import math
+import torch.nn as nn
+
 
 class HGT(torch.nn.Module):
     def __init__(self, hidden_channels, num_heads, num_layers, node_types, metadata):
@@ -16,8 +19,18 @@ class HGT(torch.nn.Module):
         ])
         self.scorer = Scorer(2 * hidden_channels, hidden_channels)
 
-    def forward(self, x_dict, edge_index_dict, current):
+
+    def forward(self, x_dict, edge_index_dict, current, time_dict=None):
+        """
+        
+        Args:
+            x_dict (dict): Dictionary of node features.
+            edge_index_dict (dict): Dictionary of edge indices.
+            current (Tensor): Current vehicle states.
+            time_dict (dict, optional): Dictionary of time features.
+        """
         x_dict = {node_type: self.lin_dict[node_type](x).relu_() for node_type, x in x_dict.items()}
+
         for conv in self.convs:
             x_dict = conv(x_dict, edge_index_dict)
         return self.compute_vehicle_outputs(x_dict, current)
@@ -65,7 +78,8 @@ def get_device():
 def train(data, model, optimizer):
     model.train()
     optimizer.zero_grad()
-    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
+    time_dict = {"vehicle": data["vehicle"].time}
+    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current, time_dict=time_dict)
     loss = compute_loss(data, vehicles_out)
     loss.backward()
     optimizer.step()
@@ -119,7 +133,7 @@ def main(data_list: list):
     train_set = data_list[:int(len(data_list) * 0.8)]
     val_set = data_list[int(len(data_list) * 0.8):]
 
-    for epoch in range(1, 100):
+    for epoch in range(1, 50):
         epoch_loss = 0
         for batch in train_set:
             data = batch.to(device)
@@ -137,7 +151,7 @@ def main(data_list: list):
 
 if __name__ == "__main__":
     from safetensors.torch import save_model, load_model
-    simulation_id = "sim3"
+    simulation_id = "sim1"
     data_list, _ = get_data(simulation_id=simulation_id)
     model = main(data_list=data_list)
 

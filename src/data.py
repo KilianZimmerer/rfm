@@ -6,13 +6,26 @@ from src.utils import BiMap
 from collections import defaultdict
 
 
-def get_data(simulation_id: str, batching: dict = {"min": 5, "max": 20}) -> tuple[list[HeteroData], BiMap]:
+def get_data(
+        simulation_id: str,
+        batching: dict = {"min": 5, "max": 20},
+        output_xml: str = "output.xml",
+    ) -> tuple[list[HeteroData], BiMap]:
     """Creates a list of HeteroData objects from net_xml and output_xml."""
     net_xml = f"sumo/{simulation_id}/rail.net.xml"
-    output_xml = f"sumo/{simulation_id}/output.xml"
+    output_xml = f"sumo/{simulation_id}/{output_xml}"
     data, node_mapping = _data_from_net_xml(net_xml)
     data_list = _add_trains(data, output_xml, node_mapping, batching)
     return data_list, node_mapping
+
+def add_edge(data: HeteroData, src_type: str, rel_type: str, dst_type: str, edge: list):
+    """Adds an edge to the HeteroData object."""
+    edge_tensor = torch.tensor([edge], dtype=torch.long).T
+    data[src_type, rel_type, dst_type].edge_index = (
+        torch.cat((data[src_type, rel_type, dst_type].edge_index, edge_tensor), dim=1)
+        if data[src_type, rel_type, dst_type]
+        else edge_tensor
+    )
 
 
 def _data_from_net_xml(net_xml: str) -> tuple[HeteroData, BiMap]:
@@ -89,7 +102,7 @@ def _process_batch(data: HeteroData, batch: list, node_mapping: BiMap) -> Hetero
     """Processes a single batch and updates the HeteroData object."""
     for i, timestep in enumerate(batch):
         _add_vehicle_node(data, timestep, i, node_mapping)
-        _add_vehicle_edges(data, timestep, i, node_mapping, len(batch))
+        _add_vehicle_edges(data, timestep, i, node_mapping)
     _update_previous_predictions(data, batch, node_mapping)
     return data
 
@@ -106,6 +119,7 @@ def _add_vehicle_node(data: HeteroData, timestep: dict, index: int, node_mapping
         "y_pos": torch.tensor([[-1]], dtype=torch.float32),
         "id": torch.tensor([[int(timestep["vehicle_id"])]], dtype=torch.long),
         "current": torch.tensor([[False]], dtype=torch.bool),
+        "predicted": torch.tensor([[False]], dtype=torch.bool),
     }
     for key, value in vehicle_data.items():
         try:
@@ -113,24 +127,13 @@ def _add_vehicle_node(data: HeteroData, timestep: dict, index: int, node_mapping
         except KeyError:
             data["vehicle"][key] = value
 
-def _add_vehicle_edges(data: HeteroData, timestep: dict, index: int, node_mapping: BiMap, batch_size: int):
+def _add_vehicle_edges(data: HeteroData, timestep: dict, index: int, node_mapping: BiMap):
     """Adds edges for the vehicle node."""
+    # TODO: there seems to be an error: not all vehicles should connect to the latest but to the last of it's same kind.
     track_type = "track"
     node_id = node_mapping.get_id(timestep["lane"])
-    _add_edge(data, "vehicle", "on", track_type, [index, node_id])
-    _add_edge(data, track_type, "hosts", "vehicle", [node_id, index])
-    if index != batch_size - 1:
-        _add_edge(data, "vehicle", "precedes", "vehicle", [index, batch_size - 1])
-
-
-def _add_edge(data: HeteroData, src_type: str, rel_type: str, dst_type: str, edge: list):
-    """Adds an edge to the HeteroData object."""
-    edge_tensor = torch.tensor([edge], dtype=torch.long).T
-    data[src_type, rel_type, dst_type].edge_index = (
-        torch.cat((data[src_type, rel_type, dst_type].edge_index, edge_tensor), dim=1)
-        if data[src_type, rel_type, dst_type]
-        else edge_tensor
-    )
+    add_edge(data, "vehicle", "on", track_type, [index, node_id])
+    add_edge(data, track_type, "hosts", "vehicle", [node_id, index])
 
 
 def _update_previous_predictions(data: HeteroData, batch: list, node_mapping: BiMap):
@@ -138,6 +141,8 @@ def _update_previous_predictions(data: HeteroData, batch: list, node_mapping: Bi
     for vehicle_id in data["vehicle"].id.unique():
         mask = data["vehicle"].id == vehicle_id
         indices = torch.where(mask)[0]
+        for idx in indices[:-2]:
+            add_edge(data, "vehicle", "precedes", "vehicle", [idx, indices[-2]])
         if len(indices) > 1:
             source_index = indices[-1]
             node_id = node_mapping.get_id(batch[source_index]["lane"])
