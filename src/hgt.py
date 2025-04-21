@@ -1,20 +1,17 @@
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import HGTConv, Linear
+from torch_geometric.nn import Linear
 import torch_geometric
 from src.data import get_data
 import math
 import torch.nn as nn
-
+from src.hgt_temp import HGTConv
 
 class HGT(torch.nn.Module):
     def __init__(self, hidden_channels, num_heads, num_layers, node_types, metadata):
         super().__init__()
-        self.lin_dict = torch.nn.ModuleDict({
-            node_type: Linear(-1, hidden_channels) for node_type in node_types
-        })
         self.convs = torch.nn.ModuleList([
-            HGTConv(hidden_channels, hidden_channels, metadata, num_heads)
+            HGTConv(-1, hidden_channels, metadata, num_heads)
             for _ in range(num_layers)
         ])
         self.scorer = Scorer(2 * hidden_channels, hidden_channels)
@@ -29,8 +26,6 @@ class HGT(torch.nn.Module):
             current (Tensor): Current vehicle states.
             time_dict (dict, optional): Dictionary of time features.
         """
-        x_dict = {node_type: self.lin_dict[node_type](x).relu_() for node_type, x in x_dict.items()}
-
         for conv in self.convs:
             x_dict = conv(x_dict, edge_index_dict)
         return self.compute_vehicle_outputs(x_dict, current)

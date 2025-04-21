@@ -16,7 +16,7 @@ class GCNConv(MessagePassing):
     def forward(self, x, edge_index):
         return self.propagate(edge_index, x=x)
 
-    def message(self, edge_index, index, x_j, x_i):
+    def message(self, edge_index_j, edge_index_i, x, x_j, x_i):
         import pdb;pdb.set_trace()
         return x_j
 

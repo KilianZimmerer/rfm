@@ -6,7 +6,7 @@ from torch import Tensor
 from torch.nn import Parameter
 
 from torch_geometric.nn.conv import MessagePassing
-from torch_geometric.nn.dense import HeteroDictLinear, HeteroLinear
+from torch_geometric.nn.dense import HeteroDictLinear, HeteroLinear, Linear
 from torch_geometric.nn.inits import ones
 from torch_geometric.nn.parameter_dict import ParameterDict
 from torch_geometric.typing import Adj, EdgeType, Metadata, NodeType
@@ -69,8 +69,12 @@ class HGTConv(MessagePassing):
 
         self.dst_node_types = {key[-1] for key in self.edge_types}
 
-        self.kqv_lin = HeteroDictLinear(self.in_channels,
-                                        self.out_channels * 3)
+        self.xs = torch.nn.ModuleDict({
+            f"{edge_type}": Linear(-1, self.out_channels)
+            for edge_type in self.edge_types
+        })
+        self.kq_lin = HeteroDictLinear(self.in_channels,
+                                        self.out_channels * 2)
 
         self.out_lin = HeteroDictLinear(self.out_channels, self.out_channels,
                                         types=self.node_types)
@@ -97,7 +101,7 @@ class HGTConv(MessagePassing):
 
     def reset_parameters(self):
         super().reset_parameters()
-        self.kqv_lin.reset_parameters()
+        self.kq_lin.reset_parameters()
         self.out_lin.reset_parameters()
         self.k_rel.reset_parameters()
         self.v_rel.reset_parameters()
@@ -116,8 +120,8 @@ class HGTConv(MessagePassing):
         return torch.cat(outs, dim=0), offset
 
     def _construct_src_node_feat(
-        self, k_dict: Dict[str, Tensor], v_dict: Dict[str, Tensor],
-        edge_index_dict: Dict[EdgeType, Adj]
+        self, k_dict: Dict[str, Tensor], x_dict,
+        edge_index_dict: Dict[EdgeType, Adj], edge_time_dict: Dict[EdgeType, Tensor] = None,
     ) -> Tuple[Tensor, Tensor, Dict[EdgeType, int]]:
         """Constructs the source node representations."""
         cumsum = 0
@@ -142,7 +146,9 @@ class HGTConv(MessagePassing):
 
             type_list.append(type_vec)
             ks.append(k_dict[src])
-            vs.append(v_dict[src])
+            x = x_dict[src] + 1  # TODO: temporal encoding here!
+            x = self.xs[f"{edge_type}"](x)
+            vs.append(x.view(-1, H, D))
 
         ks = torch.cat(ks, dim=0).transpose(0, 1).reshape(-1, D)
         vs = torch.cat(vs, dim=0).transpose(0, 1).reshape(-1, D)
@@ -150,13 +156,13 @@ class HGTConv(MessagePassing):
 
         k = self.k_rel(ks, type_vec).view(H, -1, D).transpose(0, 1)
         v = self.v_rel(vs, type_vec).view(H, -1, D).transpose(0, 1)
-
         return k, v, offset
 
     def forward(
         self,
         x_dict: Dict[NodeType, Tensor],
-        edge_index_dict: Dict[EdgeType, Adj]  # Support both.
+        edge_index_dict: Dict[EdgeType, Adj],
+        edge_time_dict: Optional[Dict[EdgeType, Tensor]] = None,
     ) -> Dict[NodeType, Optional[Tensor]]:
         r"""Runs the forward pass of the module.
 
@@ -178,24 +184,29 @@ class HGTConv(MessagePassing):
         H = self.heads
         D = F // H
 
-        k_dict, q_dict, v_dict, out_dict = {}, {}, {}, {}
+        # # Iterate over all edges and add time difference of source and target node to source node
+        # for edge_type, edge_index in edge_time_dict.items():
+        #     src = edge_type[0]
+        #     import pdb;pdb.set_trace()
+        #     # TODO: Add time difference of source and target node to source node
+        #     pass
 
+        k_dict, q_dict, out_dict = {}, {}, {}
         # Compute K, Q, V over node types:
-        kqv_dict = self.kqv_lin(x_dict)
-        for key, val in kqv_dict.items():
-            k, q, v = torch.tensor_split(val, 3, dim=1)
+        kq_dict = self.kq_lin(x_dict)
+        for key, val in kq_dict.items():
+            k, q = torch.tensor_split(val, 2, dim=1)
             k_dict[key] = k.view(-1, H, D)
             q_dict[key] = q.view(-1, H, D)
-            v_dict[key] = v.view(-1, H, D)
 
         q, dst_offset = self._cat(q_dict)
         k, v, src_offset = self._construct_src_node_feat(
-            k_dict, v_dict, edge_index_dict)
+            k_dict, x_dict, edge_index_dict)
 
         edge_index, edge_attr = construct_bipartite_edge_index(
             edge_index_dict, src_offset, dst_offset, edge_attr_dict=self.p_rel,
             num_nodes=k.size(0))
-
+        
         out = self.propagate(edge_index, k=k, q=q, v=v, edge_attr=edge_attr)
 
         # Reconstruct output node embeddings dict:
