@@ -69,7 +69,7 @@ class HGTConv(MessagePassing):
 
         self.dst_node_types = {key[-1] for key in self.edge_types}
 
-        self.xs = torch.nn.ModuleDict({
+        self.v_lin = torch.nn.ModuleDict({
             f"{edge_type}": Linear(-1, self.out_channels)
             for edge_type in self.edge_types
         })
@@ -147,7 +147,7 @@ class HGTConv(MessagePassing):
             type_list.append(type_vec)
             ks.append(k_dict[src])
             x = x_dict[src] + 1  # TODO: temporal encoding here!
-            x = self.xs[f"{edge_type}"](x)
+            x = self.v_lin[f"{edge_type}"](x)
             vs.append(x.view(-1, H, D))
 
         ks = torch.cat(ks, dim=0).transpose(0, 1).reshape(-1, D)
