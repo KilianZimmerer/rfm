@@ -23,8 +23,6 @@ For each active vehicle at a given timestep, the model performs a dual predictio
 
 The total loss is the sum of these two components, allowing the model to be trained end-to-end to predict both *where* a train is going and its *precise location* on that path.
 
-The `main` function orchestrates the entire training and evaluation pipeline, splitting the simulation data, running training epochs, and printing validation metrics for both track accuracy and position error. Once trained, the model weights are saved to a `.safetensors` file.
-
 
 ## Railway System Simulations 🚂
 
