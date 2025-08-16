@@ -3,12 +3,15 @@
 A generative dynamic graph model to capture railway systems.
 
 
-## Setup
+## Project Setup
 
 ```
 uv sync
 source .venv/bin/activate
 ```
+
+## The Core Model
+
 
 ## Railway System Simulations
 
@@ -48,9 +51,6 @@ bash ./simulations/run.sh <SIM_DIR>
 ```
 
 This will use `<SIM_DIR>/rail.rou.xml` and `<SIM_DIR>/rail.net.xml` and perform the defined dynamcis. The results are stored inside `<SIM_DIR>/output.xml`
-
-
-## The Core Model
 
 
 ## Notes
