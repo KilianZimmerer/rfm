@@ -1,6 +1,22 @@
 # Railway Foundation Model (RFM)
 
-The purpose of this project is to make neural networks "*understand*" railway dynamics. In order to achieve this a generative dynamic graph transformer model is used.
+The purpose of this project is to help AI-systems "*understand*" railway sytem dynamics. In order to achieve this a generative dynamic graph transformer model is used.
+
+
+## Quick Start
+
+Install dependencies and activate environment:
+```bash
+uv sync
+source .venv/bin/activate
+```
+
+Perform training:
+```bash
+python src/rfm.py
+```
+
+
 
 
 ## The Core Model 🤖
@@ -37,7 +53,7 @@ sudo apt install sumo sumo-tools sumo-doc
 
 Running simulations and storing the outputs is a two step process as described below.
 
-### 1. Setting up the railway network
+#### 1. Setting up the railway network
 
 The network setup is done by defining the following files inside a simulations directory `<SIM_DIR>`:
 
@@ -57,7 +73,7 @@ Where <SIM_DIR> is the directory where the above files are stored.
 
 The above command creates a file `rail.net.xml` containing all relevant network information from `rail.node.xml`, `rail.edg.xml` and `rail.con.xml`
 
-### 2. Running a simulation
+#### 2. Running a simulation
 
 Once the network is defined we further need to define the train routes in `<SIM_DIR>/rail.rou.xml`.
 
