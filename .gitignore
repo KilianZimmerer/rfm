@@ -1,3 +1,4 @@
 __pycache__
 .vscode
 testoutput.xml
+*.safetensors

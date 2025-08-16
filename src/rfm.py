@@ -75,7 +75,7 @@ def train(data, model, optimizer):
     loss = compute_loss(data, vehicles_out)
     loss.backward()
     optimizer.step()
-    return float(loss)
+    return loss
 
 
 def compute_loss(data, vehicles_out):
@@ -125,7 +125,7 @@ def main(data_list: list):
     train_set = data_list[:int(len(data_list) * 0.8)]
     val_set = data_list[int(len(data_list) * 0.8):]
 
-    for epoch in range(1, 50):
+    for epoch in range(1, 5):
         epoch_loss = 0
         for batch in train_set:
             data = batch.to(device)
