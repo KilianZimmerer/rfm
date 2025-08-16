@@ -17,11 +17,13 @@ source .venv/bin/activate
 
 The transformer model is trained on simulated data. The simulations are done with [sumo](https://sumo.dlr.de/docs/index.html).
 
-Running simulations and storing the outputs is a two step process as described below. Before you must install the sumo package:
+To run simulations you must install the sumo package:
 
 ```
 sudo apt install sumo sumo-tools sumo-doc
 ```
+
+Running simulations and storing the outputs is a two step process as described below.
 
 
 ### 1. Setting up the railway network
