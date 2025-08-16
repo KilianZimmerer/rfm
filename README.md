@@ -3,13 +3,6 @@
 The purpose of this project is to make neural networks "*understand*" railway dynamics. In order to achieve this a generative dynamic graph transformer model is used.
 
 
-## Setup
-
-```
-uv sync
-source .venv/bin/activate
-```
-
 ## The Core Model
 
 The core of this project is a **Railway Foundation Model (RFM)** model, built using `PyTorch` and `PyTorch Geometric`. This model is designed to learn the complex dynamics of a railway system by representing the entire network as a heterogeneous graph.
