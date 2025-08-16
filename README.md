@@ -1,7 +1,8 @@
 # Railway Foundation Model (RFM)
 
-The purpose of this project is to help AI-systems "*understand*" railway sytem dynamics. In order to achieve this a generative dynamic graph transformer model is used.
+The purpose of this project is to help AI-systems "*understand*" railway sytem dynamics. In order to achieve this a generative dynamic graph transformer model is trained.
 
+🚧 **This project is still WIP!** 🚧
 
 ## Quick Start
 
