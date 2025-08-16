@@ -1,6 +1,6 @@
 # Railway Foundation Model
 
-The purpose of this project is to make neural networks "*understand*" railway dynamics. For this a generative dynamic graph transformer model is used.
+The purpose of this project is to make neural networks "*understand*" railway dynamics. In order to achieve this a generative dynamic graph transformer model is used.
 
 
 ## Setup
@@ -12,6 +12,29 @@ source .venv/bin/activate
 
 ## The Core Model
 
+The core of this project is a **Railway Foundation Model (RFM)** model, built using `PyTorch` and `PyTorch Geometric`. This model is designed to learn the complex dynamics of a railway system by representing the entire network as a heterogeneous graph.
+
+---
+
+### Architecture
+
+The model consists of two main components:
+
+1.  **Graph Representation Learning (RFM)**: The main `RFM` class uses several `HGTConv` layers to process the graph. It takes the features of all nodes (vehicles, track segments, etc.) and the connections between them to compute rich, context-aware embeddings for every element in the system. This allows the model to understand how different components of the railway network influence each other.
+
+2.  **Prediction Head (`Scorer`)**: The `Scorer` is a simple Multi-Layer Perceptron (MLP). After the `RFM` layers generate embeddings, this module takes the embedding of a specific **vehicle** and the embedding of a potential **track segment** to predict the future state.
+
+---
+
+### Prediction Task
+
+For each active vehicle at a given timestep, the model performs a dual prediction task:
+* **Track Prediction**: It calculates a score for every track segment in the network, effectively a classification problem to determine which track the vehicle will move to next. This is trained using a **Cross-Entropy Loss**.
+* **Position Prediction**: For the predicted track, it calculates the vehicle's relative position on that track segment (a value between 0.0 and 1.0). This is a regression task trained with a **Mean Squared Error (MSE) Loss**.
+
+The total loss is the sum of these two components, allowing the model to be trained end-to-end to predict both *where* a train is going and its *precise location* on that path.
+
+The `main` function orchestrates the entire training and evaluation pipeline, splitting the simulation data, running training epochs, and printing validation metrics for both track accuracy and position error. Once trained, the model weights are saved to a `.safetensors` file.
 
 ## Railway System Simulations
 
