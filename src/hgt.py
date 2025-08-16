@@ -147,7 +147,7 @@ if __name__ == "__main__":
     data_list, _ = get_data(simulation_id=simulation_id)
     model = main(data_list=data_list)
 
-    save_model(model, f"sumo/{simulation_id}/model.safetensors")
+    save_model(model, f"simulations/{simulation_id}/model.safetensors")
     
     # Load the model
     device = get_device()
@@ -156,5 +156,5 @@ if __name__ == "__main__":
         node_types=data_list[0].node_types, metadata=data_list[0].metadata()).to(device)
     # Perform a dummy forward pass to initialize lazy modules
     model_test(data_list[0].x_dict, data_list[0].edge_index_dict, current=data_list[0]['vehicle'].current)
-    load_model(model_test, f"sumo/{simulation_id}/model.safetensors")
+    load_model(model_test, f"simulations/{simulation_id}/model.safetensors")
     

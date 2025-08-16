@@ -12,8 +12,8 @@ def get_data(
         output_xml: str = "output.xml",
     ) -> tuple[list[HeteroData], BiMap]:
     """Creates a list of HeteroData objects from net_xml and output_xml."""
-    net_xml = f"sumo/{simulation_id}/rail.net.xml"
-    output_xml = f"sumo/{simulation_id}/{output_xml}"
+    net_xml = f"simulations/{simulation_id}/rail.net.xml"
+    output_xml = f"simulations/{simulation_id}/{output_xml}"
     data, node_mapping = _data_from_net_xml(net_xml)
     data_list = _add_trains(data, output_xml, node_mapping, batching)
     return data_list, node_mapping

@@ -22,7 +22,7 @@ def sequential_prediction(simulation_id: str, data: HeteroData, prediction_lengt
         node_types=data.node_types, metadata=data.metadata()).to(device)
     # Perform a dummy forward pass to initialize lazy modules
     model_test(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
-    load_model(model_test, f"sumo/{simulation_id}/model.safetensors")
+    load_model(model_test, f"simulations/{simulation_id}/model.safetensors")
 
     # Sequential prediction
     while prediction_length > 0:
