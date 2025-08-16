@@ -39,8 +39,6 @@ Running simulations and storing the outputs is a two step process as described b
 
 ### 1. Setting up the railway network
 
-For this step you will need the [netconvert](https://sumo.dlr.de/docs/netconvert.html) of sumo.
-
 The network setup is done by defining the following files inside a simulations directory `<SIM_DIR>`:
 
 -   `rail.nod.xml`: Defines the nodes of the network (i.e. crossings, or signals)
