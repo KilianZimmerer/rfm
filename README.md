@@ -1,6 +1,6 @@
 # Railway Foundation Model
 
-A generative dynamic graph model to capture railway systems.
+The purpose of this project is to make neural networks "*understand*" railway dynamics. For this a generative dynamic graph transformer model is used.
 
 
 ## Setup
@@ -15,12 +15,18 @@ source .venv/bin/activate
 
 ## Railway System Simulations
 
-The foundation model is trained on simulated data. The simulations are performed via the simulation tool [sumo](https://sumo.dlr.de/docs/index.html).
+The transformer model is trained on simulated data. The simulations are done with [sumo](https://sumo.dlr.de/docs/index.html).
 
-Performing simulations is a two step process. We first need to setup the railway network and the run the simulation. 
+Running simulations and storing the outputs is a two step process as described below. Before you must install the sumo package:
+
+```
+sudo apt install sumo sumo-tools sumo-doc
+```
 
 
 ### 1. Setting up the railway network
+
+For this step you will need the [netconvert](https://sumo.dlr.de/docs/netconvert.html) of sumo.
 
 The network setup is done by defining the following files inside a simulations directory `<SIM_DIR>`:
 
