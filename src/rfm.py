@@ -5,7 +5,7 @@ from src.data import get_data
 from torch_geometric.nn import HGTConv
 
 
-class HGT(torch.nn.Module):
+class RFM(torch.nn.Module):
     def __init__(self, hidden_channels, num_heads, num_layers, node_types, metadata):
         super().__init__()
         self.convs = torch.nn.ModuleList([
@@ -118,7 +118,7 @@ def evaluate_model(data_list, model, device):
 def main(data_list: list):
     device = get_device()
     data = data_list[2]
-    model = HGT(hidden_channels=60, num_heads=3, num_layers=2,
+    model = RFM(hidden_channels=60, num_heads=3, num_layers=2,
                 node_types=data.node_types, metadata=data.metadata()).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=0.001)
 
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     
     # Load the model
     device = get_device()
-    model_test = HGT(
+    model_test = RFM(
         hidden_channels=60, num_heads=3, num_layers=2,
         node_types=data_list[0].node_types, metadata=data_list[0].metadata()).to(device)
     # Perform a dummy forward pass to initialize lazy modules

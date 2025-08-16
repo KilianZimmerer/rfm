@@ -1,7 +1,7 @@
 from safetensors.torch import load_model
 import torch
 from src.data import get_data, add_edge
-from src.hgt import HGT, get_device
+from src.rfm import RFM, get_device
 from torch_geometric.data import HeteroData
 
 
@@ -17,12 +17,12 @@ def sequential_prediction(simulation_id: str, data: HeteroData, prediction_lengt
     """
     # Load the model
     device = get_device()
-    model_test = HGT(
+    model_test = RFM(
         hidden_channels=60, num_heads=3, num_layers=2,
         node_types=data.node_types, metadata=data.metadata()).to(device)
     # Perform a dummy forward pass to initialize lazy modules
     model_test(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
-    load_model(model_test, f"simulations/{simulation_id}/model.safetensors")
+    load_model(model_test, f"sumo/{simulation_id}/model.safetensors")
 
     # Sequential prediction
     while prediction_length > 0:
