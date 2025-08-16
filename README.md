@@ -3,7 +3,7 @@
 A generative dynamic graph model to capture railway systems.
 
 
-## Project Setup
+## Setup
 
 ```
 uv sync
