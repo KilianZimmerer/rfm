@@ -1,11 +1,9 @@
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import Linear
 import torch_geometric
 from src.data import get_data
-import math
-import torch.nn as nn
-from src.hgt_temp import HGTConv
+from torch_geometric.nn import HGTConv
+
 
 class HGT(torch.nn.Module):
     def __init__(self, hidden_channels, num_heads, num_layers, node_types, metadata):
