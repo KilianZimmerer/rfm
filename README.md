@@ -1,4 +1,4 @@
-# Railway Foundation Model
+# Railway Foundation Model (RFM)
 
 The purpose of this project is to make neural networks "*understand*" railway dynamics. In order to achieve this a generative dynamic graph transformer model is used.
 
