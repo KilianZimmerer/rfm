@@ -48,7 +48,7 @@ For each active vehicle at a given timestep, the model performs a dual predictio
 The total loss is the sum of these two components, allowing the model to be trained end-to-end to predict both *where* a train is going and its *precise location* on that path.
 
 
-## Railway System Simulations 🚂
+## Railway Simulations 🚂
 
 The transformer model is trained on simulated data. The simulations are done with [sumo](https://sumo.dlr.de/docs/index.html).
 
