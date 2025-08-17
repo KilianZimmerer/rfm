@@ -1,3 +1,21 @@
+"""Defines and trains the Railway Foundation Model (RFM).
+
+This script contains the core implementation of the RFM, a Heterogeneous Graph
+Transformer (HGT) designed to simulate railway dynamics. It defines the model
+architecture, the loss function, and the complete training and evaluation loop.
+
+The model's primary task is to predict the future state of vehicles in the
+railway network, specifically their next track (a classification task) and their
+relative position on that track (a regression task).
+
+This module is intended to be executed as the main script for training. It
+parses a YAML configuration file for hyperparameters and orchestrates the
+data loading, training, and model saving processes.
+
+Usage:
+    python src/rfm.py --config path/to/your/config.yaml
+"""
+
 import torch
 import torch.nn.functional as F
 import torch_geometric
@@ -5,7 +23,7 @@ from src.data import get_data
 from torch_geometric.nn import HGTConv
 import argparse
 import yaml
-from safetensors.torch import save_model, load_model
+from safetensors.torch import save_model
 
 
 class RFM(torch.nn.Module):

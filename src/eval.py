@@ -1,3 +1,15 @@
+"""Autoregressive evaluation script for the Railway Foundation Model (RFM).
+
+This module evaluates a trained RFM model by performing a sequential rollout
+prediction. The main function, `sequential_prediction`, loads a model and an
+initial railway system state, then iteratively predicts future vehicle
+positions for a specified number of steps.
+
+In each step, the model's output is used to update the graph state, and this
+newly generated graph becomes the input for the subsequent prediction. This
+allows for an analysis of the model's long-term simulation capabilities.
+"""
+
 from safetensors.torch import load_model
 import torch
 from src.data import get_data, add_edge

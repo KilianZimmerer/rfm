@@ -1,3 +1,23 @@
+"""Parses SUMO simulation data into PyTorch Geometric HeteroData graphs.
+
+This module handles the data ingestion and preprocessing pipeline. It reads raw
+XML output files from a SUMO (Simulation of Urban MObility) railway
+simulation and transforms them into a list of graph-based data samples
+suitable for training a Graph Neural Network.
+
+The process involves two main stages:
+1.  Constructing the static railway network graph from a `rail.net.xml` file,
+    where railway lanes are represented as 'track' nodes and their connections
+    as edges.
+2.  Parsing dynamic vehicle movement data from an `output.xml` file and adding
+    'vehicle' nodes to the graph for each timestep, linking them to the
+    tracks they occupy.
+
+The final output is a list of `HeteroData` objects, where the time-series
+vehicle data has been batched into smaller windows. These graphs contain
+target labels (`y_track`, `y_pos`) for supervised learning tasks.
+"""
+
 import random
 import xml.etree.ElementTree as ET
 import torch
