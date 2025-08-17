@@ -1,0 +1,13 @@
+simulation_id: "sim1"
+
+model:
+  hidden_channels: 60
+  num_heads: 3
+  num_layers: 2
+
+optimizer:
+  lr: 0.005
+  weight_decay: 0.001
+
+training:
+  epochs: 5

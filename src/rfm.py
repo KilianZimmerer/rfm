@@ -3,10 +3,13 @@ import torch.nn.functional as F
 import torch_geometric
 from src.data import get_data
 from torch_geometric.nn import HGTConv
+import argparse
+import yaml
+from safetensors.torch import save_model, load_model
 
 
 class RFM(torch.nn.Module):
-    def __init__(self, hidden_channels, num_heads, num_layers, node_types, metadata):
+    def __init__(self, hidden_channels, num_heads, num_layers, metadata):
         super().__init__()
         self.convs = torch.nn.ModuleList([
             HGTConv(-1, hidden_channels, metadata, num_heads)
@@ -115,17 +118,30 @@ def evaluate_model(data_list, model, device):
     return track_acc, pos_mae
 
 
-def main(data_list: list):
+def main(data_list: list, config: dict):
     device = get_device()
-    data = data_list[2]
-    model = RFM(hidden_channels=60, num_heads=3, num_layers=2,
-                node_types=data.node_types, metadata=data.metadata()).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=0.001)
+    data = data_list[0]
+
+    model_params = config['model']
+    model = RFM(
+        hidden_channels=model_params['hidden_channels'],
+        num_heads=model_params['num_heads'],
+        num_layers=model_params['num_layers'],
+        metadata=data.metadata()
+    ).to(device)
+
+    opt_params = config['optimizer']
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=opt_params['lr'],
+        weight_decay=opt_params['weight_decay']
+    )
 
     train_set = data_list[:int(len(data_list) * 0.8)]
     val_set = data_list[int(len(data_list) * 0.8):]
 
-    for epoch in range(1, 5):
+    epochs = config['training']['epochs']
+    for epoch in range(1, epochs + 1):
         epoch_loss = 0
         for batch in train_set:
             data = batch.to(device)
@@ -136,25 +152,29 @@ def main(data_list: list):
 
         print(f'Epoch: {epoch:03d}')
         print(f'Loss: {epoch_loss:.4f}')
-        print(f'Train track: {train_track_acc[0]:.4f}', f'Val track: {val_track_acc[0]:.4f}')
-        print(f'Train pos: {train_pos_mae[0]:.4f}', f'Val pos: {val_pos_mae[0]:.4f}')
+        print(f'Train track: {train_track_acc.item():.4f}', f'Val track: {val_track_acc.item():.4f}')
+        print(f'Train pos: {train_pos_mae.item():.4f}', f'Val pos: {val_pos_mae.item():.4f}')
     return model
-    
+
+def load_config(config_path):
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
+
 
 if __name__ == "__main__":
-    from safetensors.torch import save_model, load_model
-    simulation_id = "sim1"
-    data_list, _ = get_data(simulation_id=simulation_id)
-    model = main(data_list=data_list)
+    parser = argparse.ArgumentParser(description="Train a Railway Foundation Model.")
+    parser.add_argument('--config', type=str, required=True, help='Path to the config.yaml file.')
+    args = parser.parse_args()
 
-    save_model(model, f"simulations/{simulation_id}/model.safetensors")
+    config = load_config(args.config)
+    simulation_id = config['simulation_id']
+
+    print(f"Starting training for simulation: {simulation_id}")
+    data_list, _ = get_data(simulation_id=simulation_id)
     
-    # Load the model
-    device = get_device()
-    model_test = RFM(
-        hidden_channels=60, num_heads=3, num_layers=2,
-        node_types=data_list[0].node_types, metadata=data_list[0].metadata()).to(device)
-    # Perform a dummy forward pass to initialize lazy modules
-    model_test(data_list[0].x_dict, data_list[0].edge_index_dict, current=data_list[0]['vehicle'].current)
-    load_model(model_test, f"simulations/{simulation_id}/model.safetensors")
+    model = main(data_list=data_list, config=config)
+
+    model_path = f"simulations/{simulation_id}/model.safetensors"
+    save_model(model, model_path)
+    print(f"Model saved to {model_path}")
     
