@@ -4,21 +4,27 @@ The purpose of this project is to help AI-systems "*understand*" railway sytem d
 
 🚧 **This project is still WIP!** 🚧
 
-## Quick Start
+## Quick Start 🚀
 
-Install dependencies and activate environment:
+Follow these steps to set up the environment and run the model training.
+
+
+### 1. Setup Environment
+
+Install the project dependencies from `pyproject.toml` and activate the virtual environment.
+
 ```bash
 uv sync
 source .venv/bin/activate
 ```
 
-Perform training:
+### 2. Run Training
+
+The training script requires a configuration file to specify model and training parameters. Run the following command, pointing it to your desired config file:
+
 ```bash
-python src/rfm.py
+python src/rfm.py --config ./config.yaml
 ```
-
-
-
 
 ## The Core Model 🤖
 
