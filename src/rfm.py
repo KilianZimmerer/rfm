@@ -89,25 +89,60 @@ def get_device():
     return torch.device('cpu')
 
 
-def train(data, model, optimizer):
+def train(data, model, optimizer, pos_weight):
     model.train()
     optimizer.zero_grad()
     vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
-    loss = compute_loss(data, vehicles_out)
+    loss = compute_loss(data, vehicles_out, pos_weight=pos_weight)
     loss.backward()
     optimizer.step()
     return loss
 
 
-def compute_loss(data, vehicles_out):
-    loss = 0
+def compute_loss(data, vehicles_out, pos_weight=0.1):
+    """
+    Computes the combined loss for track classification and position regression.
+
+    Args:
+        data: The graph data batch.
+        vehicles_out (list): The list of output dictionaries from the model.
+        pos_weight (float): The weight to apply to the MSE loss to balance it
+                            with the cross-entropy loss.
+    """
+    total_loss = 0.0
+    
+    # Extract ground truth labels for all vehicles in the current batch for efficiency
+    current_vehicle_indices = data["vehicle"].current[:, 0]
+    y_pos_true_batch = data["vehicle"].y_pos[current_vehicle_indices]
+    y_track_true_batch = data["vehicle"].y_track[current_vehicle_indices]
+
+    # Iterate through the output for each vehicle
     for i, out_dict in enumerate(vehicles_out):
-        _, max_index = out_dict["scores"].max(dim=0)
-        y_pos_true = data["vehicle"].y_pos[data["vehicle"].current[:, 0]][i]
-        y_track_true = data["vehicle"].y_track[data["vehicle"].current[:, 0]][i]
-        loss += F.cross_entropy(out_dict["scores"], y_track_true[0])
-        loss += F.mse_loss(out_dict["pos"][max_index], y_pos_true[0])
-    return loss
+        # Ground truth for the i-th vehicle in the batch
+        y_pos_true = y_pos_true_batch[i]
+        y_track_true_label = y_track_true_batch[i] # This is a tensor with the class index
+
+        # --- 1. Classification Loss (Cross-Entropy) ---
+        # The model's scores (logits) for all possible tracks for this vehicle
+        track_scores = out_dict["scores"].unsqueeze(0) # Shape: [1, num_tracks]
+        classification_loss = F.cross_entropy(track_scores, y_track_true_label)
+        
+        # --- 2. Regression Loss (Mean Squared Error) ---
+        # Get the index of the TRUE track
+        true_track_index = y_track_true_label.item()
+        
+        # Select the model's position prediction for the TRUE track
+        predicted_pos_for_true_track = out_dict["pos"][true_track_index]
+        
+        # Calculate the regression loss
+        regression_loss = F.mse_loss(predicted_pos_for_true_track, y_pos_true.squeeze())
+
+        # --- 3. Combine Losses ---
+        # Add the weighted losses for this vehicle to the total
+        total_loss += classification_loss + (pos_weight * regression_loss)
+        
+    return total_loss
+
 
 
 @torch.no_grad()
@@ -163,7 +198,7 @@ def main(data_list: list, config: dict):
         epoch_loss = 0
         for batch in train_set:
             data = batch.to(device)
-            epoch_loss += train(data, model, optimizer)
+            epoch_loss += train(data, model, optimizer, pos_weight=0.1)
 
         train_track_acc, train_pos_mae = evaluate_model(train_set, model, device)
         val_track_acc, val_pos_mae = evaluate_model(val_set, model, device)
