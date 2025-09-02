@@ -10,4 +10,4 @@ optimizer:
   weight_decay: 0.001
 
 training:
-  epochs: 50
+  epochs: 20

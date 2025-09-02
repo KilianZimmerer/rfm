@@ -9,5 +9,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "safetensors>=0.6.2",
     "torch>=2.8.0",
-    "torch-geometric>=2.6.1",
 ]
+
+[tool.uv.sources]
+torch-geometric = { path = "../pytorch_geometric" }
