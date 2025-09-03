@@ -27,26 +27,26 @@ from safetensors.torch import save_model
 
 
 class RFM(torch.nn.Module):
-    def __init__(self, hidden_channels, num_heads, num_layers, metadata):
+    def __init__(self, hidden_channels, num_heads, num_layers, metadata, use_RTE):
         super().__init__()
         self.convs = torch.nn.ModuleList([
-            HGTConv(-1, hidden_channels, metadata, num_heads)
+            HGTConv(-1, hidden_channels, metadata, num_heads, use_RTE=use_RTE)
             for _ in range(num_layers)
         ])
         self.scorer = Scorer(2 * hidden_channels, hidden_channels)
 
 
-    def forward(self, x_dict, edge_index_dict, current):
+    def forward(self, x_dict, edge_index_dict, current, edge_time_diff_dict=None):
         """
         
         Args:
             x_dict (dict): Dictionary of node features.
             edge_index_dict (dict): Dictionary of edge indices.
             current (Tensor): Current vehicle states.
-            time_dict (dict, optional): Dictionary of time features.
+            edge_time_diff_dict (dict, optional): Dictionary of edge time features.
         """
         for conv in self.convs:
-            x_dict = conv(x_dict, edge_index_dict)
+            x_dict = conv(x_dict, edge_index_dict, edge_time_diff_dict)
         return self.compute_vehicle_outputs(x_dict, current)
 
     def compute_vehicle_outputs(self, x_dict, current):
@@ -92,7 +92,15 @@ def get_device():
 def train(data, model, optimizer, pos_weight):
     model.train()
     optimizer.zero_grad()
-    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
+
+    num_edges = data['track', 'connects', 'track'].edge_index.size(1)
+    data['track', 'connects', 'track'].time_diff = torch.zeros(num_edges, dtype=torch.long)
+    num_edges = data['vehicle', 'on', 'track'].edge_index.size(1)
+    data['vehicle', 'on', 'track'].time_diff = torch.zeros(num_edges, dtype=torch.long)
+    num_edges = data['track', 'hosts', 'vehicle'].edge_index.size(1)
+    data['track', 'hosts', 'vehicle'].time_diff = torch.zeros(num_edges, dtype=torch.long)
+
+    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current, edge_time_diff_dict=data.time_diff_dict)
     loss = compute_loss(data, vehicles_out, pos_weight=pos_weight)
     loss.backward()
     optimizer.step()
@@ -148,14 +156,30 @@ def compute_loss(data, vehicles_out, pos_weight=0.1):
 @torch.no_grad()
 def test(data, model):
     model.eval()
-    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current)
+
+    num_edges = data['track', 'connects', 'track'].edge_index.size(1)
+    data['track', 'connects', 'track'].time_diff = torch.zeros(num_edges, dtype=torch.long)
+    num_edges = data['vehicle', 'on', 'track'].edge_index.size(1)
+    data['vehicle', 'on', 'track'].time_diff = torch.zeros(num_edges, dtype=torch.long)
+    num_edges = data['track', 'hosts', 'vehicle'].edge_index.size(1)
+    data['track', 'hosts', 'vehicle'].time_diff = torch.zeros(num_edges, dtype=torch.long)
+
+    vehicles_out = model(data.x_dict, data.edge_index_dict, current=data['vehicle'].current, edge_time_diff_dict=data.time_diff_dict)
     correct_track_prediction, pos_error = [], []
+    current_vehicle_indices = data["vehicle"].current[:, 0]
+    y_pos_true_batch = data["vehicle"].y_pos[current_vehicle_indices]
+    y_track_true_batch = data["vehicle"].y_track[current_vehicle_indices]
+
     for i, out_dict in enumerate(vehicles_out):
-        _, max_index = out_dict["scores"].max(dim=0)
-        y_pos_true = data["vehicle"].y_pos[data["vehicle"].current[:, 0]][i]
-        y_track_true = data["vehicle"].y_track[data["vehicle"].current[:, 0]][i]
-        correct_track_prediction.append((max_index == y_track_true))
-        pos_error.append(torch.abs(out_dict["pos"][max_index] - y_pos_true))
+        _, predicted_track_index = out_dict["scores"].max(dim=0)
+        y_track_true = y_track_true_batch[i]
+        correct_track_prediction.append((predicted_track_index == y_track_true).item())
+
+        y_pos_true = y_pos_true_batch[i]
+        true_track_index = y_track_true.item()
+        predicted_pos_for_true_track = out_dict["pos"][true_track_index]
+
+        pos_error.append(torch.abs(predicted_pos_for_true_track - y_pos_true).item())
     return correct_track_prediction, pos_error
 
 
@@ -173,14 +197,15 @@ def evaluate_model(data_list, model, device):
 
 def main(data_list: list, config: dict):
     device = get_device()
-    data = data_list[0]
+    data = data_list[0]  # TODO: get metadata from source data
 
     model_params = config['model']
     model = RFM(
         hidden_channels=model_params['hidden_channels'],
         num_heads=model_params['num_heads'],
         num_layers=model_params['num_layers'],
-        metadata=data.metadata()
+        metadata=data.metadata(),
+        use_RTE=model_params["use_RTE"],
     ).to(device)
 
     opt_params = config['optimizer']
@@ -188,6 +213,12 @@ def main(data_list: list, config: dict):
         model.parameters(),
         lr=opt_params['lr'],
         weight_decay=opt_params['weight_decay']
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, 
+        mode=opt_params["ReduceLROnPlateauScheduler"]["mode"],
+        factor=opt_params["ReduceLROnPlateauScheduler"]["factor"],
+        patience=opt_params["ReduceLROnPlateauScheduler"]["patience"],
     )
 
     train_set = data_list[:int(len(data_list) * 0.8)]
@@ -203,10 +234,12 @@ def main(data_list: list, config: dict):
         train_track_acc, train_pos_mae = evaluate_model(train_set, model, device)
         val_track_acc, val_pos_mae = evaluate_model(val_set, model, device)
 
+        scheduler.step(val_pos_mae)
+
         print(f'Epoch: {epoch:03d}')
         print(f'Loss: {epoch_loss:.4f}')
-        print(f'Train track: {train_track_acc.item():.4f}', f'Val track: {val_track_acc.item():.4f}')
-        print(f'Train pos: {train_pos_mae.item():.4f}', f'Val pos: {val_pos_mae.item():.4f}')
+        print(f'Train track: {train_track_acc:.4f}', f'Val track: {val_track_acc:.4f}')
+        print(f'Train pos: {train_pos_mae:.4f}', f'Val pos: {val_pos_mae:.4f}')
     return model
 
 def load_config(config_path):
@@ -223,6 +256,7 @@ if __name__ == "__main__":
     simulation_id = config['simulation_id']
 
     print(f"Starting training for simulation: {simulation_id}")
+    print(f"Using config: {config}")
     data_list, _ = get_data(simulation_id=simulation_id)
     
     model = main(data_list=data_list, config=config)

@@ -74,7 +74,7 @@ An example can be viewed in [./simulations/sim3](./simulations/sim3/).
 The network can then be initialized with:
 
 ```bash
-bash ./simulations/network <SIM_DIR>
+bash ./simulations/network.sh <SIM_DIR>
 ```
 
 Where <SIM_DIR> is the directory where the above files are stored.
@@ -83,7 +83,9 @@ The above command creates a file `rail.net.xml` containing all relevant network 
 
 #### 2. Running a simulation
 
-Once the network is defined we further need to define the train routes in `<SIM_DIR>/rail.rou.xml`.
+Once the network is defined we further need to define the train routes in `<SIM_DIR>/rail.rou.xml` and a `<SIM_DIR>/rail.sumocfg` file.
+
+Examples can be viewed in [./simulations/sim3](./simulations/sim3/).
 
 Then the simulation can be started with:
 
@@ -91,7 +93,7 @@ Then the simulation can be started with:
 bash ./simulations/run.sh <SIM_DIR>
 ```
 
-This will use `<SIM_DIR>/rail.rou.xml` and `<SIM_DIR>/rail.net.xml` and perform the defined dynamcis. The results are stored inside `<SIM_DIR>/output.xml`
+This will use `<SIM_DIR>/rail.rou.xml`, `<SIM_DIR>/rail.net.xml` and `<SIM_DIR>/rail.sumocfg` to perform the defined dynamcis. The results are stored inside `<SIM_DIR>/output.xml`
 
 
 ## Notes
