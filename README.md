@@ -87,7 +87,7 @@ Once the network is defined we further need to define the train routes in `<SIM_
 
 Examples can be viewed in [./simulations/sim3](./simulations/sim3/).
 
-Then the simulation can be started with:
+The simulation can be started with:
 
 ```bash
 bash ./simulations/run.sh <SIM_DIR>
@@ -95,6 +95,11 @@ bash ./simulations/run.sh <SIM_DIR>
 
 This will use `<SIM_DIR>/rail.rou.xml`, `<SIM_DIR>/rail.net.xml` and `<SIM_DIR>/rail.sumocfg` to perform the defined dynamcis. The results are stored inside `<SIM_DIR>/output.xml`
 
+If you want to visually see the simulation run:
+
+```bash
+sumo-gui -v <PATH_TO_SUMOCFG_FILE>
+```
 
 ## Notes
 
