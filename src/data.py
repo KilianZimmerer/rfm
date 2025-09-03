@@ -18,7 +18,8 @@ vehicle data has been batched into smaller windows. These graphs contain
 target labels (`y_track`, `y_pos`) for supervised learning tasks.
 """
 
-#TODO: batching strategy could be improved to time-batching so that there are enoguh vehicles of one type in one batch
+# TODO: batching strategy could be improved to time-batching so that there are enoguh vehicles of one type in one batch
+# TODO: large output.xml files take long to load.
 
 import xml.etree.ElementTree as ET
 import torch
@@ -37,6 +38,7 @@ def get_data(
     data, node_mapping = _data_from_net_xml(net_xml)
     data_list = _add_trains(data, output_xml, node_mapping)
     return data_list, node_mapping
+
 
 def add_edge(data: HeteroData, src_type: str, rel_type: str, dst_type: str, edge: list):
     """Adds an edge to the HeteroData object."""
@@ -157,41 +159,55 @@ def _create_batches(
 
 
 def _process_batch(data: HeteroData, batch: list, node_mapping: BiMap) -> HeteroData:
-    """Processes a single batch and updates the HeteroData object."""
+    """
+    Processes a single batch and updates the HeteroData object efficiently.
+    This version uses the "collect-then-convert" pattern to avoid slow loops.
+    """
+    new_data = data.clone() # Clone once at the beginning of processing
+
+    # --- Step 1: Collect all data in Python lists ---
+    vehicle_x_list = []
+    vehicle_time_list = []
+    vehicle_id_list = []
+    
+    on_track_edges_src = []
+    on_track_edges_dst = []
+
     for i, timestep in enumerate(batch):
-        _add_vehicle_node(data, timestep, i, node_mapping)
-        _add_vehicle_edges(data, timestep, i, node_mapping)
-    _add_sequential_edges_with_time_diff(data)
-    _update_prediction_target(data, batch, node_mapping)
-    return data
+        # Get data for the current vehicle node
+        track_id = node_mapping.get_id(timestep["lane"])
+        rel_pos = timestep["pos"] / new_data["track"].x[track_id].item()
+        
+        # Append to lists
+        vehicle_x_list.append([rel_pos])
+        vehicle_time_list.append([timestep["time"]])
+        vehicle_id_list.append([int(timestep["vehicle_id"])])
 
+        # Append edge data to lists
+        on_track_edges_src.append(i) # Source is the new vehicle node's index
+        on_track_edges_dst.append(track_id) # Destination is the track node's index
 
-def _add_vehicle_node(data: HeteroData, timestep: dict, index: int, node_mapping: BiMap):
-    """Adds a vehicle node to the HeteroData object."""
-    track_type = "track"
-    node_id = node_mapping.get_id(timestep["lane"])
-    rel_pos = timestep["pos"] / data[track_type].x[node_id].item()
-    vehicle_data = {
-        "x": torch.tensor([[rel_pos]], dtype=torch.float32),
-        "time": torch.tensor([[timestep["time"]]], dtype=torch.float32),
-        "y_track": torch.tensor([[-1]], dtype=torch.long),
-        "y_pos": torch.tensor([[-1]], dtype=torch.float32),
-        "id": torch.tensor([[int(timestep["vehicle_id"])]], dtype=torch.long),
-        "current": torch.tensor([[False]], dtype=torch.bool),
-        "predicted": torch.tensor([[False]], dtype=torch.bool),
-    }
-    for key, value in vehicle_data.items():
-        try:
-            data["vehicle"][key] = torch.cat((data["vehicle"][key], value), dim=0)
-        except KeyError:
-            data["vehicle"][key] = value
+    # --- Step 2: Convert lists to Tensors in a single operation ---
+    num_vehicles = len(batch)
+    new_data["vehicle"].x = torch.tensor(vehicle_x_list, dtype=torch.float32)
+    new_data["vehicle"].time = torch.tensor(vehicle_time_list, dtype=torch.float32)
+    new_data["vehicle"].id = torch.tensor(vehicle_id_list, dtype=torch.long)
 
-def _add_vehicle_edges(data: HeteroData, timestep: dict, index: int, node_mapping: BiMap):
-    """Adds edges for the vehicle node."""
-    track_type = "track"
-    node_id = node_mapping.get_id(timestep["lane"])
-    add_edge(data, "vehicle", "on", track_type, [index, node_id])
-    add_edge(data, track_type, "hosts", "vehicle", [node_id, index])
+    # Initialize other attributes with default values
+    new_data["vehicle"].y_track = torch.full((num_vehicles, 1), -1, dtype=torch.long)
+    new_data["vehicle"].y_pos = torch.full((num_vehicles, 1), -1.0, dtype=torch.float32)
+    new_data["vehicle"].current = torch.zeros((num_vehicles, 1), dtype=torch.bool)
+    
+    # Create the 'on' and 'hosts' edges
+    on_track_edge_index = torch.tensor([on_track_edges_src, on_track_edges_dst], dtype=torch.long)
+    new_data["vehicle", "on", "track"].edge_index = on_track_edge_index
+    new_data["track", "hosts", "vehicle"].edge_index = on_track_edge_index.flip([0]) # Reverse for the other direction
+    
+    # --- Step 3: Add sequential edges and set prediction targets (these were already efficient) ---
+    _add_sequential_edges_with_time_diff(new_data)
+    _update_prediction_target(new_data, batch, node_mapping)
+    
+    return new_data
 
 
 def _add_sequential_edges_with_time_diff(data: HeteroData):

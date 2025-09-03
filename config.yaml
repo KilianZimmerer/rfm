@@ -1,4 +1,4 @@
-simulation_id: "sim3"
+simulation_id: "sim2"
 
 model:
   hidden_channels: 60
