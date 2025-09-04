@@ -20,6 +20,7 @@ target labels (`y_track`, `y_pos`) for supervised learning tasks.
 
 # TODO: batching strategy could be improved to time-batching so that there are enoguh vehicles of one type in one batch
 # TODO: large output.xml files take long to load.
+# TODO: store batches on disk and dynamically load them for training
 
 import xml.etree.ElementTree as ET
 import torch

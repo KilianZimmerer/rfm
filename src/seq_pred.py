@@ -10,6 +10,8 @@ newly generated graph becomes the input for the subsequent prediction. This
 allows for an analysis of the model's long-term simulation capabilities.
 """
 
+# TODO: Quantitative Trajectory Evaluation Metrics
+
 from safetensors.torch import load_model
 import torch
 from src.data import get_data, add_edge

@@ -103,5 +103,5 @@ sumo-gui -v <PATH_TO_SUMOCFG_FILE>
 
 ## Notes
 
- - Maybe use an encoder-decoder architecture: The encoder encodes track segments and vehicles. The decoder takes vehicle embedding and current track-embedding as an input and iterates through the track embedding.
+ - Sequential connections to past trains seems to make temporal encoding obsolete for now.
  - 
