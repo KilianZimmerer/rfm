@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <routes>
-	<vType id="rail" vClass="rail" length="1" maxSpeed="1" accel="2.6" decel="4.5" sigma="0.1"/>
+	<vType id="rail" vClass="rail" length="1" maxSpeed="1" accel="2.6" decel="4.5" sigma="0"/>
 	<!-- Rectangular route -->
 	<route id="0" edges="e1 e2 e3 e4" repeat="10000"/>
 	<route id="1" edges="e1 e7 e8 e4" repeat="10000"/>
@@ -16,11 +16,4 @@
 	<vehicle id="5" type="rail" route="0" depart="25" />
 	<vehicle id="6" type="rail" route="1" depart="30" />
 	<vehicle id="7" type="rail" route="2" depart="35" />
-	<vehicle id="8" type="rail" route="3" depart="40" />
-	<vehicle id="9" type="rail" route="4" depart="45" />
-	<vehicle id="10" type="rail" route="0" depart="50" />
-	<vehicle id="11" type="rail" route="1" depart="55" />
-	<vehicle id="12" type="rail" route="2" depart="60" />
-	<vehicle id="13" type="rail" route="3" depart="65" />
-	<vehicle id="14" type="rail" route="4" depart="70" />
 </routes>

@@ -1,13 +1,13 @@
-simulation_id: "sim2"
+simulation_id: "sim3"
 
 model:
   hidden_channels: 60
   num_heads: 3
   num_layers: 2
-  use_RTE: False
+  use_RTE: True
 
 optimizer:
-  lr: 0.001
+  lr: 0.0001
   weight_decay: 0.001
 
   ReduceLROnPlateauScheduler:
